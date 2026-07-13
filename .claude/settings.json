@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git checkout *)",
+      "Bash(npm install *)",
+      "Bash(npx vitest *)",
+      "Bash(node -e ' *)",
+      "Bash(npx tsx -e ' *)",
+      "Bash(npm run *)",
+      "Bash(disown)",
+      "Bash(curl -s http://localhost:3000)",
+      "Read(//tmp/**)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s http://localhost:3000/ -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(npx --yes playwright@latest --version)",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(npm init *)",
+      "Bash(npx playwright *)",
+      "Bash(node e2e.mjs)",
+      "Bash(node scripts/generate-icons.mjs)",
+      "Bash(curl -s http://localhost:3000/manifest.webmanifest)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/icons/icon-192.png)",
+      "Bash(npx next *)",
+      "Bash(npx eslint *)",
+      "Bash(npx --yes serve out -l 4173)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:4173/)",
+      "Bash(node e2e-offline.mjs)",
+      "Bash(node e2e-debug-sw.mjs)",
+      "Bash(xargs grep -l \"defaultCache\")",
+      "Bash(pkill -f \"serve out\")",
+      "Bash(node e2e-full.mjs)",
+      "Bash(git merge *)",
+      "Bash(git branch *)"
+    ]
+  }
+}
