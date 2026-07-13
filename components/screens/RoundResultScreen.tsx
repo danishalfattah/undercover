@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import type { Player, WinnerSide } from "@/lib/types";
+import type { MrWhiteGuessResult, Player, WinnerSide } from "@/lib/types";
 
 const WINNER_LABEL: Record<NonNullable<WinnerSide>, string> = {
   CIVILIAN: "Civilian Menang!",
@@ -11,16 +11,28 @@ const WINNER_LABEL: Record<NonNullable<WinnerSide>, string> = {
 type RoundResultScreenProps = {
   players: Player[];
   winner: WinnerSide;
+  mrWhiteGuessResult: MrWhiteGuessResult | null;
   onNewRound: () => void;
   onFinish: () => void;
 };
 
-export function RoundResultScreen({ players, winner, onNewRound, onFinish }: RoundResultScreenProps) {
+export function RoundResultScreen({
+  players,
+  winner,
+  mrWhiteGuessResult,
+  onNewRound,
+  onFinish,
+}: RoundResultScreenProps) {
   const ranking = [...players].sort((a, b) => b.score - a.score);
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-6 py-8">
       <h2 className="text-center text-2xl font-bold">{winner ? WINNER_LABEL[winner] : "Ronde Selesai"}</h2>
+      {winner === "MR_WHITE_GUESS" && mrWhiteGuessResult && (
+        <p className="text-center text-slate-500">
+          Tebakan benar: &ldquo;{mrWhiteGuessResult.guess}&rdquo;
+        </p>
+      )}
       <Card className="flex flex-col gap-2">
         <p className="text-sm font-medium text-slate-500">Papan Peringkat</p>
         <ol className="flex flex-col gap-2">
@@ -29,7 +41,12 @@ export function RoundResultScreen({ players, winner, onNewRound, onFinish }: Rou
               <span>
                 {index + 1}. {p.name}
               </span>
-              <span className="font-semibold">{p.score} pts</span>
+              <span className="flex items-center gap-2">
+                {p.lastRoundPoints > 0 && (
+                  <span className="text-sm font-medium text-accent">+{p.lastRoundPoints}</span>
+                )}
+                <span className="font-semibold">{p.score} pts</span>
+              </span>
             </li>
           ))}
         </ol>

@@ -23,6 +23,7 @@ type GameActions = {
   resolveTie: (candidateIds: string[]) => void;
   randomTieBreak: () => void;
   submitMrWhiteGuess: (guess: string) => void;
+  acknowledgeMrWhiteGuess: () => void;
   startNewRound: () => void;
   resetToHome: () => void;
 };
@@ -40,12 +41,14 @@ function initialState(): GameState {
     roundNumber: 0,
     wordPair: null,
     players: [],
+    seatOrder: [],
     currentTurnIndex: 0,
     revealIndex: 0,
     eliminationCandidates: [],
     config: { civilianCount: 0, undercoverCount: 0, mrWhiteCount: 0, category: 'Acak' },
     lastEliminatedId: null,
     winner: null,
+    mrWhiteGuessResult: null,
   };
 }
 
@@ -70,25 +73,34 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     if (!validation.valid) {
       return false;
     }
-    const wordPair = pickWordPair(config.category);
-    const players = assignTurnOrder(
-      allocateRoles(names, config, {
-        civilian: wordPair.civilian,
-        undercover: wordPair.undercover,
-        category: wordPair.category as WordCategory,
-      })
-    );
+    const pickedWordPair = pickWordPair(config.category);
+    const allocation = allocateRoles(names, config, {
+      civilian: pickedWordPair.civilian,
+      undercover: pickedWordPair.undercover,
+      category: pickedWordPair.category as WordCategory,
+    });
+    const players = assignTurnOrder(allocation.players);
+    // Persist the word pair using the final civilian/undercover assignment
+    // (allocateRoles may have swapped sides per FR-08), so Mr. White's guess
+    // is checked against the word Civilians actually hold.
+    const wordPair = {
+      civilian: allocation.civilianWord,
+      undercover: allocation.undercoverWord,
+      category: pickedWordPair.category,
+    };
     set({
       status: 'REVEAL',
       roundNumber: 1,
       wordPair,
       players,
+      seatOrder: names,
       currentTurnIndex: 0,
       revealIndex: 0,
       eliminationCandidates: [],
       config,
       lastEliminatedId: null,
       winner: null,
+      mrWhiteGuessResult: null,
     });
     return true;
   },
@@ -157,32 +169,52 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
   submitMrWhiteGuess: (guess) => {
     const { wordPair, players } = get();
     const correct = wordPair !== null && guess.trim().toLowerCase() === wordPair.civilian.trim().toLowerCase();
+
     if (correct) {
       const scoredPlayers = calculateScores(players, 'MR_WHITE_GUESS', true);
-      set({ status: 'FINISHED', winner: 'MR_WHITE_GUESS', players: scoredPlayers });
+      set({
+        status: 'FINISHED',
+        winner: 'MR_WHITE_GUESS',
+        players: scoredPlayers,
+        mrWhiteGuessResult: { guess, correct: true },
+      });
       return;
     }
+
+    // Wrong guess: show the result first, defer the win-check transition to acknowledgeMrWhiteGuess.
+    set({ mrWhiteGuessResult: { guess, correct: false } });
+  },
+
+  acknowledgeMrWhiteGuess: () => {
+    const { players } = get();
     const resolved = resolveAfterElimination(players, false);
     set({
       players: resolved.players,
       status: resolved.status,
       winner: resolved.winner,
       currentTurnIndex: 0,
+      mrWhiteGuessResult: null,
     });
   },
 
   startNewRound: () => {
-    const { players, config, roundNumber } = get();
-    const names = players.map((p) => p.name);
+    const { players, seatOrder, config, roundNumber } = get();
     const scoresByName = new Map(players.map((p) => [p.name, p.score]));
-    const wordPair = pickWordPair(config.category);
-    const freshPlayers = assignTurnOrder(
-      allocateRoles(names, config, {
-        civilian: wordPair.civilian,
-        undercover: wordPair.undercover,
-        category: wordPair.category as WordCategory,
-      })
-    ).map((p) => ({ ...p, score: scoresByName.get(p.name) ?? 0 }));
+    const pickedWordPair = pickWordPair(config.category);
+    const allocation = allocateRoles(seatOrder, config, {
+      civilian: pickedWordPair.civilian,
+      undercover: pickedWordPair.undercover,
+      category: pickedWordPair.category as WordCategory,
+    });
+    const freshPlayers = assignTurnOrder(allocation.players).map((p) => ({
+      ...p,
+      score: scoresByName.get(p.name) ?? 0,
+    }));
+    const wordPair = {
+      civilian: allocation.civilianWord,
+      undercover: allocation.undercoverWord,
+      category: pickedWordPair.category,
+    };
 
     set({
       status: 'REVEAL',
@@ -194,6 +226,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       eliminationCandidates: [],
       lastEliminatedId: null,
       winner: null,
+      mrWhiteGuessResult: null,
     });
   },
 

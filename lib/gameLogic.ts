@@ -69,25 +69,36 @@ function nextId(): string {
   return `player-${Date.now()}-${idCounter}`;
 }
 
+export type AllocateRolesResult = {
+  players: Player[];
+  /** Final word held by Civilian this round, after FR-08 side randomization. */
+  civilianWord: string;
+  /** Final word held by Undercover this round, after FR-08 side randomization. */
+  undercoverWord: string;
+};
+
 /**
  * FR-07/FR-08: allocate roles via Fisher-Yates and randomize which of the
  * two words (civilian/undercover) goes to which role each round.
+ *
+ * `names` is expected in seating order (the order they were entered in
+ * Setup); that order is preserved in the returned players so reveal and
+ * turn order can follow physical seating instead of being re-shuffled.
  */
-export function allocateRoles(names: string[], config: RoleConfig, wordPair: WordPair): Player[] {
+export function allocateRoles(names: string[], config: RoleConfig, wordPair: WordPair): AllocateRolesResult {
   const roles: Role[] = [
     ...Array(config.civilianCount).fill('CIVILIAN'),
     ...Array(config.undercoverCount).fill('UNDERCOVER'),
     ...Array(config.mrWhiteCount).fill('MR_WHITE'),
   ];
   const shuffledRoles = shuffle(roles);
-  const shuffledNames = shuffle(names);
 
   // FR-08: randomize which word is "civilian's" word for this round.
   const swapSides = Math.random() < 0.5;
   const civilianWord = swapSides ? wordPair.undercover : wordPair.civilian;
   const undercoverWord = swapSides ? wordPair.civilian : wordPair.undercover;
 
-  return shuffledNames.map((name, index) => {
+  const players = names.map((name, index) => {
     const role = shuffledRoles[index];
     const secretWord = role === 'CIVILIAN' ? civilianWord : role === 'UNDERCOVER' ? undercoverWord : null;
     return {
@@ -97,20 +108,39 @@ export function allocateRoles(names: string[], config: RoleConfig, wordPair: Wor
       secretWord,
       isAlive: true,
       score: 0,
+      lastRoundPoints: 0,
       turnOrder: 0, // assigned by assignTurnOrder
     };
   });
+
+  return { players, civilianWord, undercoverWord };
 }
 
-/** §7.3: randomize speaking order; Mr. White never goes first (when others exist). */
+/**
+ * §7.3: speaking order follows physical seating (the order players appear
+ * in, e.g. Bagas -> Alia -> Farah -> Danish), rotated to start from a
+ * random non-Mr.-White seat so Mr. White never speaks first. Players who
+ * are no longer alive are skipped, but the relative seating order among
+ * survivors is preserved.
+ */
 export function assignTurnOrder(players: Player[]): Player[] {
-  let shuffled = shuffle(players);
-  if (players.length > 1) {
-    while (shuffled[0].role === 'MR_WHITE') {
-      shuffled = shuffle(players);
-    }
-  }
-  return shuffled.map((p, index) => ({ ...p, turnOrder: index }));
+  const alive = players.filter((p) => p.isAlive);
+  const nonMrWhiteIndices = alive
+    .map((p, i) => (p.role === 'MR_WHITE' ? -1 : i))
+    .filter((i) => i !== -1);
+
+  const startIndex =
+    alive.length > 1 && nonMrWhiteIndices.length > 0
+      ? nonMrWhiteIndices[Math.floor(Math.random() * nonMrWhiteIndices.length)]
+      : 0;
+
+  const rotatedAlive = [...alive.slice(startIndex), ...alive.slice(0, startIndex)];
+  const turnOrderById = new Map(rotatedAlive.map((p, index) => [p.id, index]));
+
+  return players.map((p) => ({
+    ...p,
+    turnOrder: turnOrderById.get(p.id) ?? p.turnOrder,
+  }));
 }
 
 /** §7.2 win conditions. Returns null if the game should continue. */
@@ -155,6 +185,6 @@ export function calculateScores(
     } else if (winner === 'MR_WHITE_GUESS' && mrWhiteGuessedCorrectly && p.role === 'MR_WHITE') {
       delta = 6;
     }
-    return { ...p, score: p.score + delta };
+    return { ...p, score: p.score + delta, lastRoundPoints: delta };
   });
 }

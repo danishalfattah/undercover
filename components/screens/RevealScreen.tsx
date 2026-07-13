@@ -45,7 +45,7 @@ export function RevealScreen({ players, revealIndex, onConfirmRevealed }: Reveal
         onPointerUp={() => setHolding(false)}
         onPointerLeave={() => setHolding(false)}
       >
-        {holding ? (player.secretWord ?? "^^") : "•••••"}
+        {holding ? (player.secretWord ?? "Mr. White") : "•••••"}
       </Card>
       <div className="w-full max-w-xs">
         <Button onClick={handleNext}>Sudah, sembunyikan &amp; lanjut</Button>

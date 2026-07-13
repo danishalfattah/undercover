@@ -71,7 +71,9 @@ export default function Page() {
       return (
         <MrWhiteGuessScreen
           mrWhite={state.players.find((p) => p.id === state.lastEliminatedId)}
+          guessResult={state.mrWhiteGuessResult}
           onSubmitGuess={state.submitMrWhiteGuess}
+          onAcknowledgeGuess={state.acknowledgeMrWhiteGuess}
         />
       );
 
@@ -81,6 +83,7 @@ export default function Page() {
         <RoundResultScreen
           players={state.players}
           winner={state.winner}
+          mrWhiteGuessResult={state.mrWhiteGuessResult}
           onNewRound={state.startNewRound}
           onFinish={() => {
             state.resetToHome();
