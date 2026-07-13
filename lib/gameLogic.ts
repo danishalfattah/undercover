@@ -35,7 +35,10 @@ export function recommendComposition(totalPlayers: number): RoleConfig {
 
 export type CompositionValidation = { valid: true } | { valid: false; reason: string };
 
-/** PRD §7.1 validation: undercover+mrWhite < civilian, total >= 3, counts sum to total. */
+/**
+ * Validation (relaxed from PRD §7.1's strict "<" per host preference):
+ * undercover+mrWhite <= civilian, total >= 3, counts sum to total.
+ */
 export function validateComposition(config: RoleConfig, totalPlayers: number): CompositionValidation {
   if (totalPlayers < 3) {
     return { valid: false, reason: 'Jumlah pemain minimal 3 orang' };
@@ -44,8 +47,8 @@ export function validateComposition(config: RoleConfig, totalPlayers: number): C
   if (sum !== totalPlayers) {
     return { valid: false, reason: 'Jumlah komposisi peran harus sama dengan jumlah pemain' };
   }
-  if (config.undercoverCount + config.mrWhiteCount >= config.civilianCount) {
-    return { valid: false, reason: 'Jumlah penyusup harus lebih sedikit daripada Civilian' };
+  if (config.undercoverCount + config.mrWhiteCount > config.civilianCount) {
+    return { valid: false, reason: 'Jumlah penyusup tidak boleh lebih banyak daripada Civilian' };
   }
   return { valid: true };
 }

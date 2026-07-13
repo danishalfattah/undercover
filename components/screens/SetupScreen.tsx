@@ -40,6 +40,16 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
     setComposition(recommendComposition(clamped));
   }
 
+  /** Adjust undercoverCount or mrWhiteCount; civilianCount absorbs the remainder. */
+  function updateRoleCount(role: "undercoverCount" | "mrWhiteCount", delta: number) {
+    setComposition((prev) => {
+      const nextValue = Math.max(0, prev[role] + delta);
+      const updated = { ...prev, [role]: nextValue };
+      updated.civilianCount = playerCount - updated.undercoverCount - updated.mrWhiteCount;
+      return updated;
+    });
+  }
+
   const validation = useMemo(
     () => validateComposition(composition, playerCount),
     [composition, playerCount]
@@ -101,20 +111,64 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
 
       <Card className="flex flex-col gap-3">
         <label className="text-sm font-medium text-slate-600">Komposisi Peran</label>
-        <div className="grid grid-cols-3 gap-2 text-center text-sm">
-          <div>
-            <div className="font-semibold">{composition.civilianCount}</div>
-            <div className="text-slate-500">Civilian</div>
-          </div>
-          <div>
-            <div className="font-semibold">{composition.undercoverCount}</div>
-            <div className="text-slate-500">Undercover</div>
-          </div>
-          <div>
-            <div className="font-semibold">{composition.mrWhiteCount}</div>
-            <div className="text-slate-500">Mr. White</div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm">Civilian</span>
+          <span className="min-w-[3ch] text-center text-lg font-semibold">
+            {composition.civilianCount}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm">Undercover</span>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              className="w-10"
+              onClick={() => updateRoleCount("undercoverCount", -1)}
+              aria-label="Kurangi jumlah Undercover"
+            >
+              −
+            </Button>
+            <span className="min-w-[2ch] text-center text-lg font-semibold">
+              {composition.undercoverCount}
+            </span>
+            <Button
+              variant="secondary"
+              className="w-10"
+              onClick={() => updateRoleCount("undercoverCount", 1)}
+              aria-label="Tambah jumlah Undercover"
+            >
+              +
+            </Button>
           </div>
         </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-sm">Mr. White</span>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              className="w-10"
+              onClick={() => updateRoleCount("mrWhiteCount", -1)}
+              aria-label="Kurangi jumlah Mr. White"
+            >
+              −
+            </Button>
+            <span className="min-w-[2ch] text-center text-lg font-semibold">
+              {composition.mrWhiteCount}
+            </span>
+            <Button
+              variant="secondary"
+              className="w-10"
+              onClick={() => updateRoleCount("mrWhiteCount", 1)}
+              aria-label="Tambah jumlah Mr. White"
+            >
+              +
+            </Button>
+          </div>
+        </div>
+
         {!validation.valid && (
           <p className="text-sm text-danger" role="alert">
             {validation.reason}
