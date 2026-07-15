@@ -10,6 +10,7 @@ type VotingScreenProps = {
   eliminationCandidates: string[];
   onEliminate: (id: string) => void;
   onRandomTieBreak: () => void;
+  onSkipRound: () => void;
 };
 
 export function VotingScreen({
@@ -17,6 +18,7 @@ export function VotingScreen({
   eliminationCandidates,
   onEliminate,
   onRandomTieBreak,
+  onSkipRound,
 }: VotingScreenProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const isTieBreak = eliminationCandidates.length > 0;
@@ -24,18 +26,42 @@ export function VotingScreen({
     ? players.filter((p) => eliminationCandidates.includes(p.id))
     : players.filter((p) => p.isAlive);
 
+  function handleSkip() {
+    if (confirm("Lewati ronde ini? Tidak ada poin yang berubah.")) {
+      onSkipRound();
+    }
+  }
+
   return (
     <div className="flex flex-1 flex-col gap-4 px-6 py-8">
-      <h2 className="text-2xl font-bold">{isTieBreak ? "Voting Ulang (Seri)" : "Voting"}</h2>
-      <p className="text-slate-500">Pilih pemain yang dieliminasi berdasarkan hasil voting kelompok.</p>
+      <div className="animate-fade-up text-center">
+        <span className="font-mono-num text-xs tracking-[0.3em] text-accent-soft">
+          {isTieBreak ? "SERI TERDETEKSI" : "PEMUNGUTAN SUARA"}
+        </span>
+        <h2 className="font-display text-3xl font-bold text-foreground italic">
+          {isTieBreak ? "Voting Ulang" : "Voting"}
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Pilih tersangka yang dieliminasi berdasarkan hasil voting kelompok.
+        </p>
+      </div>
       <PlayerList players={votablePlayers} onSelect={setSelectedId} selectedId={selectedId} />
       <div className="mt-auto flex flex-col gap-2">
-        <Button onClick={() => selectedId && onEliminate(selectedId)} disabled={!selectedId}>
+        <Button
+          variant="danger"
+          onClick={() => selectedId && onEliminate(selectedId)}
+          disabled={!selectedId}
+        >
           Eliminasi
         </Button>
         {isTieBreak && (
           <Button variant="secondary" onClick={onRandomTieBreak}>
             Pilih Acak
+          </Button>
+        )}
+        {!isTieBreak && (
+          <Button variant="secondary" onClick={handleSkip}>
+            Skip Ronde
           </Button>
         )}
       </div>

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import type { MrWhiteGuessResult, Player } from "@/lib/types";
 
 type MrWhiteGuessScreenProps = {
@@ -25,12 +24,16 @@ export function MrWhiteGuessScreen({
   if (guessResult && !guessResult.correct) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
-        <p className="text-slate-500">{mrWhite.name} menebak</p>
-        <h2 className="text-2xl font-bold">&ldquo;{guessResult.guess}&rdquo;</h2>
-        <Card className="w-full max-w-xs">
-          <p className="text-2xl font-bold text-danger">Salah!</p>
-        </Card>
-        <div className="w-full max-w-xs">
+        <span className="font-mono-num text-xs tracking-[0.3em] text-accent-soft">
+          TEBAKAN {mrWhite.name.toUpperCase()}
+        </span>
+        <h2 className="font-display text-2xl font-bold text-foreground italic">
+          &ldquo;{guessResult.guess}&rdquo;
+        </h2>
+        <div className="animate-stamp dossier-edge flex w-full max-w-xs items-center justify-center border-2 border-danger/70 bg-card px-6 py-8 rotate-2">
+          <p className="font-display text-3xl font-bold tracking-wide text-danger uppercase">Salah!</p>
+        </div>
+        <div className="w-full max-w-xs pt-2">
           <Button onClick={onAcknowledgeGuess}>Lanjut</Button>
         </div>
       </div>
@@ -39,13 +42,15 @@ export function MrWhiteGuessScreen({
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
-      <p className="text-slate-500">{mrWhite.name} tereliminasi sebagai Mr. White</p>
-      <h2 className="text-2xl font-bold">Tebak kata Civilian!</h2>
+      <span className="font-mono-num text-xs tracking-[0.3em] text-accent-soft">
+        {mrWhite.name.toUpperCase()} TERSINGKAP SEBAGAI MR. WHITE
+      </span>
+      <h2 className="font-display text-3xl font-bold text-foreground italic">Tebak Kata Civilian</h2>
       <input
         value={guess}
         onChange={(e) => setGuess(e.target.value)}
         placeholder="Tulis tebakan..."
-        className="min-h-11 w-full max-w-xs rounded-xl border border-slate-300 px-4 text-center text-lg"
+        className="min-h-12 w-full max-w-xs rounded-sm border border-card-border bg-card px-4 text-center text-lg text-foreground placeholder:text-muted/60 focus:border-accent focus:outline-none"
       />
       <div className="w-full max-w-xs">
         <Button onClick={() => onSubmitGuess(guess)} disabled={!guess.trim()}>

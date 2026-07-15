@@ -24,18 +24,28 @@ export type Player = {
   isAlive: boolean;
   score: number; // cumulative across rounds in this session
   lastRoundPoints: number; // points gained in the most recently finished round
+  /** Fixed physical seating position (index into seatOrder) — never changes within a round. */
+  seatIndex: number;
   turnOrder: number;
 };
 
 export type GameStatus =
   | 'SETUP'
   | 'REVEAL'
-  | 'DESCRIPTION'
+  | 'SPEAKING_ORDER'
   | 'VOTING'
   | 'ELIMINATION'
   | 'MR_WHITE_GUESS'
   | 'ROUND_RESULT'
   | 'FINISHED';
+
+/** A face-down card in the reveal grid; role/word is fixed, owner assigned when picked. */
+export type RevealCard = {
+  index: number;
+  role: Role;
+  secretWord: string | null;
+  takenByPlayerId: string | null;
+};
 
 export type RoleConfig = {
   civilianCount: number;
@@ -61,11 +71,15 @@ export type GameState = {
   players: Player[];
   /** Physical seating order (names, as entered in Setup) — fixed for the whole session. */
   seatOrder: string[];
-  currentTurnIndex: number;
-  revealIndex: number;
+  /** Face-down reveal deck for the current round (roles shuffled, owners unassigned). */
+  revealCards: RevealCard[];
+  /** Which player (by seat order) is currently picking a reveal card. */
+  revealPickIndex: number;
   eliminationCandidates: string[]; // player ids tied in the last vote; empty = no tie in progress
   config: GameConfig;
   lastEliminatedId: string | null;
+  /** Seat position of the most recently eliminated player, used to resume speaking order after them. */
+  lastEliminatedSeatIndex: number | null;
   winner: WinnerSide;
   mrWhiteGuessResult: MrWhiteGuessResult | null;
 };

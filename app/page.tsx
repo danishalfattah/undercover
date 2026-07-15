@@ -5,7 +5,7 @@ import { useGameStore } from "@/lib/store";
 import { HomeScreen } from "@/components/screens/HomeScreen";
 import { SetupScreen } from "@/components/screens/SetupScreen";
 import { RevealScreen } from "@/components/screens/RevealScreen";
-import { DescriptionScreen } from "@/components/screens/DescriptionScreen";
+import { SpeakingOrderScreen } from "@/components/screens/SpeakingOrderScreen";
 import { VotingScreen } from "@/components/screens/VotingScreen";
 import { EliminationScreen } from "@/components/screens/EliminationScreen";
 import { MrWhiteGuessScreen } from "@/components/screens/MrWhiteGuessScreen";
@@ -34,17 +34,18 @@ export default function Page() {
       return (
         <RevealScreen
           players={state.players}
-          revealIndex={state.revealIndex}
-          onConfirmRevealed={state.confirmRevealed}
+          revealCards={state.revealCards}
+          revealPickIndex={state.revealPickIndex}
+          onPickCard={state.pickRevealCard}
         />
       );
 
-    case "DESCRIPTION":
+    case "SPEAKING_ORDER":
       return (
-        <DescriptionScreen
+        <SpeakingOrderScreen
           players={state.players}
-          currentTurnIndex={state.currentTurnIndex}
-          onNextTurn={state.nextTurn}
+          onGoToVoting={state.goToVoting}
+          onSkipRound={state.skipRound}
         />
       );
 
@@ -55,6 +56,7 @@ export default function Page() {
           eliminationCandidates={state.eliminationCandidates}
           onEliminate={state.eliminatePlayer}
           onRandomTieBreak={state.randomTieBreak}
+          onSkipRound={state.skipRound}
         />
       );
 
@@ -83,6 +85,7 @@ export default function Page() {
         <RoundResultScreen
           players={state.players}
           winner={state.winner}
+          wordPair={state.wordPair}
           mrWhiteGuessResult={state.mrWhiteGuessResult}
           onNewRound={state.startNewRound}
           onFinish={() => {

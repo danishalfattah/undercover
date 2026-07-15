@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import type { MrWhiteGuessResult, Player, WinnerSide } from "@/lib/types";
+import type { GameState, MrWhiteGuessResult, Player, WinnerSide } from "@/lib/types";
 
 const WINNER_LABEL: Record<NonNullable<WinnerSide>, string> = {
   CIVILIAN: "Civilian Menang!",
@@ -11,6 +10,7 @@ const WINNER_LABEL: Record<NonNullable<WinnerSide>, string> = {
 type RoundResultScreenProps = {
   players: Player[];
   winner: WinnerSide;
+  wordPair: GameState["wordPair"];
   mrWhiteGuessResult: MrWhiteGuessResult | null;
   onNewRound: () => void;
   onFinish: () => void;
@@ -19,6 +19,7 @@ type RoundResultScreenProps = {
 export function RoundResultScreen({
   players,
   winner,
+  wordPair,
   mrWhiteGuessResult,
   onNewRound,
   onFinish,
@@ -27,30 +28,67 @@ export function RoundResultScreen({
 
   return (
     <div className="flex flex-1 flex-col gap-6 px-6 py-8">
-      <h2 className="text-center text-2xl font-bold">{winner ? WINNER_LABEL[winner] : "Ronde Selesai"}</h2>
-      {winner === "MR_WHITE_GUESS" && mrWhiteGuessResult && (
-        <p className="text-center text-slate-500">
-          Tebakan benar: &ldquo;{mrWhiteGuessResult.guess}&rdquo;
-        </p>
+      <div className="animate-fade-up text-center">
+        <span className="font-mono-num text-xs tracking-[0.3em] text-accent-soft">KASUS DITUTUP</span>
+        <h2 className="font-display text-3xl font-bold text-foreground italic">
+          {winner ? WINNER_LABEL[winner] : "Ronde Selesai"}
+        </h2>
+        {winner === "MR_WHITE_GUESS" && mrWhiteGuessResult && (
+          <p className="mt-1 text-sm text-muted">
+            Tebakan benar: &ldquo;{mrWhiteGuessResult.guess}&rdquo;
+          </p>
+        )}
+      </div>
+
+      {wordPair && (
+        <div className="flex divide-x divide-card-border rounded-sm border border-card-border bg-card shadow-[0_6px_16px_-10px_rgba(42,33,24,0.4)]">
+          <div className="flex flex-1 flex-col items-center gap-1 px-4 py-4">
+            <span className="text-xs font-bold tracking-[0.2em] text-accent-soft uppercase">
+              Civilian
+            </span>
+            <span className="font-display text-xl font-bold text-foreground italic">
+              {wordPair.civilian}
+            </span>
+          </div>
+          <div className="flex flex-1 flex-col items-center gap-1 px-4 py-4">
+            <span className="text-xs font-bold tracking-[0.2em] text-danger uppercase">
+              Undercover
+            </span>
+            <span className="font-display text-xl font-bold text-foreground italic">
+              {wordPair.undercover}
+            </span>
+          </div>
+        </div>
       )}
-      <Card className="flex flex-col gap-2">
-        <p className="text-sm font-medium text-slate-500">Papan Peringkat</p>
-        <ol className="flex flex-col gap-2">
+
+      <div className="rounded-sm border border-card-border bg-card shadow-[0_6px_16px_-10px_rgba(42,33,24,0.4)]">
+        <p className="border-b border-card-border/60 px-5 py-3 text-xs font-bold tracking-[0.2em] text-accent-soft uppercase">
+          Papan Peringkat
+        </p>
+        <ol className="flex flex-col divide-y divide-card-border/60">
           {ranking.map((p, index) => (
-            <li key={p.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-              <span>
-                {index + 1}. {p.name}
+            <li key={p.id} className="flex items-center justify-between px-5 py-3">
+              <span className="flex items-center gap-3">
+                <span className="font-mono-num text-xs text-muted">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="text-base text-foreground">{p.name}</span>
               </span>
               <span className="flex items-center gap-2">
                 {p.lastRoundPoints > 0 && (
-                  <span className="text-sm font-medium text-accent">+{p.lastRoundPoints}</span>
+                  <span className="font-mono-num text-sm font-bold text-accent">
+                    +{p.lastRoundPoints}
+                  </span>
                 )}
-                <span className="font-semibold">{p.score} pts</span>
+                <span className="font-mono-num text-base font-bold text-foreground">
+                  {p.score} pts
+                </span>
               </span>
             </li>
           ))}
         </ol>
-      </Card>
+      </div>
+
       <div className="mt-auto flex flex-col gap-2">
         <Button onClick={onNewRound}>Ronde Baru</Button>
         <Button variant="secondary" onClick={onFinish}>

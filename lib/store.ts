@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { GameState, GameConfig, WordCategory, WinnerSide } from './types';
 import {
-  allocateRoles,
+  buildRound,
   assignTurnOrder,
   checkWinner,
   calculateScores,
@@ -16,14 +16,15 @@ type InitGameInput = {
 
 type GameActions = {
   initGame: (input: InitGameInput) => boolean;
-  confirmRevealed: () => void;
-  nextTurn: () => void;
+  pickRevealCard: (cardIndex: number) => void;
+  goToVoting: () => void;
   eliminatePlayer: (id: string) => void;
   acknowledgeElimination: () => void;
   resolveTie: (candidateIds: string[]) => void;
   randomTieBreak: () => void;
   submitMrWhiteGuess: (guess: string) => void;
   acknowledgeMrWhiteGuess: () => void;
+  skipRound: () => void;
   startNewRound: () => void;
   resetToHome: () => void;
 };
@@ -42,24 +43,49 @@ function initialState(): GameState {
     wordPair: null,
     players: [],
     seatOrder: [],
-    currentTurnIndex: 0,
-    revealIndex: 0,
+    revealCards: [],
+    revealPickIndex: 0,
     eliminationCandidates: [],
     config: { civilianCount: 0, undercoverCount: 0, mrWhiteCount: 0, category: 'Acak' },
     lastEliminatedId: null,
+    lastEliminatedSeatIndex: null,
     winner: null,
     mrWhiteGuessResult: null,
   };
 }
 
-/** Resolve win condition after an elimination is acknowledged. */
+/** Set up a fresh round's reveal deck + placeholder players for the given seat order. */
+function setupRound(seatOrder: string[], config: GameConfig) {
+  const pickedWordPair = pickWordPair(config.category);
+  const round = buildRound(seatOrder, config, {
+    civilian: pickedWordPair.civilian,
+    undercover: pickedWordPair.undercover,
+    category: pickedWordPair.category as WordCategory,
+  });
+  // Persist the word pair using the final civilian/undercover assignment
+  // (buildRound may have swapped sides per FR-08), so Mr. White's guess is
+  // checked against the word Civilians actually hold.
+  const wordPair = {
+    civilian: round.civilianWord,
+    undercover: round.undercoverWord,
+    category: pickedWordPair.category,
+  };
+  return { players: round.players, revealCards: round.revealCards, wordPair };
+}
+
+/**
+ * Resolve win condition after an elimination is acknowledged. When the game
+ * continues, speaking order resumes right after the eliminated player's seat.
+ */
 function resolveAfterElimination(
   players: GameState['players'],
+  eliminatedSeatIndex: number | null,
   mrWhiteGuessedCorrectly: boolean
 ): { status: GameState['status']; winner: WinnerSide; players: GameState['players'] } {
   const winnerSide = checkWinner(players);
   if (winnerSide === null) {
-    return { status: 'DESCRIPTION', winner: null, players };
+    const reordered = assignTurnOrder(players, eliminatedSeatIndex ?? undefined);
+    return { status: 'SPEAKING_ORDER', winner: null, players: reordered };
   }
   const scoredPlayers = calculateScores(players, winnerSide, mrWhiteGuessedCorrectly);
   return { status: 'ROUND_RESULT', winner: winnerSide, players: scoredPlayers };
@@ -73,72 +99,77 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     if (!validation.valid) {
       return false;
     }
-    const pickedWordPair = pickWordPair(config.category);
-    const allocation = allocateRoles(names, config, {
-      civilian: pickedWordPair.civilian,
-      undercover: pickedWordPair.undercover,
-      category: pickedWordPair.category as WordCategory,
-    });
-    const players = assignTurnOrder(allocation.players);
-    // Persist the word pair using the final civilian/undercover assignment
-    // (allocateRoles may have swapped sides per FR-08), so Mr. White's guess
-    // is checked against the word Civilians actually hold.
-    const wordPair = {
-      civilian: allocation.civilianWord,
-      undercover: allocation.undercoverWord,
-      category: pickedWordPair.category,
-    };
+    const { players, revealCards, wordPair } = setupRound(names, config);
     set({
       status: 'REVEAL',
       roundNumber: 1,
       wordPair,
       players,
       seatOrder: names,
-      currentTurnIndex: 0,
-      revealIndex: 0,
+      revealCards,
+      revealPickIndex: 0,
       eliminationCandidates: [],
       config,
       lastEliminatedId: null,
+      lastEliminatedSeatIndex: null,
       winner: null,
       mrWhiteGuessResult: null,
     });
     return true;
   },
 
-  confirmRevealed: () => {
-    const { revealIndex, players } = get();
-    const nextIndex = revealIndex + 1;
-    if (nextIndex >= players.length) {
-      set({ status: 'DESCRIPTION', revealIndex: nextIndex, currentTurnIndex: 0 });
+  pickRevealCard: (cardIndex) => {
+    const { revealCards, revealPickIndex, players } = get();
+    const card = revealCards[cardIndex];
+    if (!card || card.takenByPlayerId !== null) return;
+
+    const player = players[revealPickIndex];
+    if (!player) return;
+
+    const updatedCards = revealCards.map((c) =>
+      c.index === cardIndex ? { ...c, takenByPlayerId: player.id } : c
+    );
+    const updatedPlayers = players.map((p) =>
+      p.id === player.id ? { ...p, role: card.role, secretWord: card.secretWord } : p
+    );
+    const nextPickIndex = revealPickIndex + 1;
+
+    if (nextPickIndex >= players.length) {
+      // Everyone has picked: assign seat-based speaking order (Mr. White not first).
+      set({
+        revealCards: updatedCards,
+        players: assignTurnOrder(updatedPlayers),
+        revealPickIndex: nextPickIndex,
+        status: 'SPEAKING_ORDER',
+      });
     } else {
-      set({ revealIndex: nextIndex });
+      set({
+        revealCards: updatedCards,
+        players: updatedPlayers,
+        revealPickIndex: nextPickIndex,
+      });
     }
   },
 
-  nextTurn: () => {
-    const { currentTurnIndex, players } = get();
-    const aliveCount = players.filter((p) => p.isAlive).length;
-    const nextIndex = currentTurnIndex + 1;
-    if (nextIndex >= aliveCount) {
-      set({ status: 'VOTING', currentTurnIndex: nextIndex });
-    } else {
-      set({ currentTurnIndex: nextIndex });
-    }
+  goToVoting: () => {
+    set({ status: 'VOTING' });
   },
 
   eliminatePlayer: (id) => {
     const { players } = get();
+    const eliminated = players.find((p) => p.id === id);
     const updatedPlayers = players.map((p) => (p.id === id ? { ...p, isAlive: false } : p));
     set({
       players: updatedPlayers,
       status: 'ELIMINATION',
       lastEliminatedId: id,
+      lastEliminatedSeatIndex: eliminated?.seatIndex ?? null,
       eliminationCandidates: [],
     });
   },
 
   acknowledgeElimination: () => {
-    const { players, lastEliminatedId } = get();
+    const { players, lastEliminatedId, lastEliminatedSeatIndex } = get();
     const eliminated = players.find((p) => p.id === lastEliminatedId);
 
     if (eliminated?.role === 'MR_WHITE') {
@@ -146,12 +177,11 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       return;
     }
 
-    const resolved = resolveAfterElimination(players, false);
+    const resolved = resolveAfterElimination(players, lastEliminatedSeatIndex, false);
     set({
       players: resolved.players,
       status: resolved.status,
       winner: resolved.winner,
-      currentTurnIndex: 0,
     });
   },
 
@@ -186,45 +216,47 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
   },
 
   acknowledgeMrWhiteGuess: () => {
-    const { players } = get();
-    const resolved = resolveAfterElimination(players, false);
+    const { players, lastEliminatedSeatIndex } = get();
+    const resolved = resolveAfterElimination(players, lastEliminatedSeatIndex, false);
     set({
       players: resolved.players,
       status: resolved.status,
       winner: resolved.winner,
-      currentTurnIndex: 0,
       mrWhiteGuessResult: null,
+    });
+  },
+
+  skipRound: () => {
+    const { players } = get();
+    // End the round with no winner and no score change.
+    set({
+      players: players.map((p) => ({ ...p, lastRoundPoints: 0 })),
+      status: 'ROUND_RESULT',
+      winner: null,
+      mrWhiteGuessResult: null,
+      eliminationCandidates: [],
     });
   },
 
   startNewRound: () => {
     const { players, seatOrder, config, roundNumber } = get();
     const scoresByName = new Map(players.map((p) => [p.name, p.score]));
-    const pickedWordPair = pickWordPair(config.category);
-    const allocation = allocateRoles(seatOrder, config, {
-      civilian: pickedWordPair.civilian,
-      undercover: pickedWordPair.undercover,
-      category: pickedWordPair.category as WordCategory,
-    });
-    const freshPlayers = assignTurnOrder(allocation.players).map((p) => ({
+    const { players: freshPlayers, revealCards, wordPair } = setupRound(seatOrder, config);
+    const scoredPlayers = freshPlayers.map((p) => ({
       ...p,
       score: scoresByName.get(p.name) ?? 0,
     }));
-    const wordPair = {
-      civilian: allocation.civilianWord,
-      undercover: allocation.undercoverWord,
-      category: pickedWordPair.category,
-    };
 
     set({
       status: 'REVEAL',
       roundNumber: roundNumber + 1,
       wordPair,
-      players: freshPlayers,
-      currentTurnIndex: 0,
-      revealIndex: 0,
+      players: scoredPlayers,
+      revealCards,
+      revealPickIndex: 0,
       eliminationCandidates: [],
       lastEliminatedId: null,
+      lastEliminatedSeatIndex: null,
       winner: null,
       mrWhiteGuessResult: null,
     });

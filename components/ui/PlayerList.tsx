@@ -9,20 +9,23 @@ type PlayerListProps = {
 export function PlayerList({ players, onSelect, selectedId }: PlayerListProps) {
   return (
     <ul className="flex flex-col gap-2" role="list">
-      {players.map((player) => (
+      {players.map((player, index) => (
         <li key={player.id}>
           <button
             type="button"
             aria-pressed={selectedId === player.id}
             onClick={() => onSelect?.(player.id)}
             disabled={!onSelect}
-            className={`min-h-11 w-full rounded-xl border px-4 py-3 text-left text-base font-medium transition-colors ${
+            className={`flex min-h-12 w-full items-center gap-3 rounded-sm border px-4 py-3 text-left text-base transition-colors ${
               selectedId === player.id
-                ? "border-accent-2 bg-indigo-50 text-accent-2"
-                : "border-slate-200 bg-white text-foreground"
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-card-border bg-card text-foreground"
             } disabled:opacity-100`}
           >
-            {player.name}
+            <span className="font-mono-num text-xs text-muted">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <span className="font-medium">{player.name}</span>
           </button>
         </li>
       ))}
