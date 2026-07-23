@@ -82,4 +82,27 @@ export type GameState = {
   lastEliminatedSeatIndex: number | null;
   winner: WinnerSide;
   mrWhiteGuessResult: MrWhiteGuessResult | null;
+  /** Keys ("civilian|undercover") of word pairs already used this session (across "Ronde Baru"). Reset on initGame/finishSession. */
+  usedWordKeys: string[];
+};
+
+export type SessionHistoryEntry = {
+  id: string;
+  timestamp: number;
+  playerNames: string[];
+  finalLeaderboard: { name: string; score: number }[]; // sorted desc by score
+  roundsPlayed: number;
+};
+
+/** Version-controlled wrapper for a GameState snapshot persisted to localStorage. */
+export type PersistedSessionSnapshot = {
+  schemaVersion: 1;
+  savedAt: number;
+  state: GameState;
+};
+
+/** Version-controlled wrapper for the persisted session history list. */
+export type PersistedHistory = {
+  schemaVersion: 1;
+  entries: SessionHistoryEntry[];
 };

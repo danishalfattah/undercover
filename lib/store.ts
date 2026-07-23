@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState, GameConfig, WordCategory, WinnerSide } from './types';
+import type { GameState, GameConfig, WordCategory, WinnerSide, SessionHistoryEntry } from './types';
 import {
   buildRound,
   assignTurnOrder,
@@ -8,6 +8,7 @@ import {
   validateComposition,
 } from './gameLogic';
 import { WORD_PAIRS } from './words';
+import { appendHistoryEntry, clearActiveSession } from './persistence';
 
 type InitGameInput = {
   names: string[];
@@ -27,12 +28,24 @@ type GameActions = {
   skipRound: () => void;
   startNewRound: () => void;
   resetToHome: () => void;
+  finishSession: () => void;
+  resumeSession: (saved: GameState) => void;
 };
 
-function pickWordPair(category: WordCategory | 'Acak') {
+function wordKey(civilian: string, undercover: string): string {
+  return `${civilian}|${undercover}`;
+}
+
+function pickWordPair(category: WordCategory | 'Acak', usedWordKeys: string[]) {
   const pool = category === 'Acak' ? WORD_PAIRS : WORD_PAIRS.filter((w) => w.category === category);
   const effectivePool = pool.length > 0 ? pool : WORD_PAIRS.filter((w) => w.category === 'Umum');
-  const chosen = effectivePool[Math.floor(Math.random() * effectivePool.length)];
+
+  const usedSet = new Set(usedWordKeys);
+  const unusedPool = effectivePool.filter((w) => !usedSet.has(wordKey(w.civilian, w.undercover)));
+  // If this category's pool is exhausted this session, silently allow repeats again.
+  const finalPool = unusedPool.length > 0 ? unusedPool : effectivePool;
+
+  const chosen = finalPool[Math.floor(Math.random() * finalPool.length)];
   return { civilian: chosen.civilian, undercover: chosen.undercover, category: chosen.category };
 }
 
@@ -51,12 +64,16 @@ function initialState(): GameState {
     lastEliminatedSeatIndex: null,
     winner: null,
     mrWhiteGuessResult: null,
+    usedWordKeys: [],
   };
 }
 
-/** Set up a fresh round's reveal deck + placeholder players for the given seat order. */
-function setupRound(seatOrder: string[], config: GameConfig) {
-  const pickedWordPair = pickWordPair(config.category);
+/**
+ * Set up a fresh round's reveal deck + placeholder players for the given seat
+ * order, excluding word pairs already used this session where possible.
+ */
+function setupRound(seatOrder: string[], config: GameConfig, usedWordKeys: string[]) {
+  const pickedWordPair = pickWordPair(config.category, usedWordKeys);
   const round = buildRound(seatOrder, config, {
     civilian: pickedWordPair.civilian,
     undercover: pickedWordPair.undercover,
@@ -70,7 +87,10 @@ function setupRound(seatOrder: string[], config: GameConfig) {
     undercover: round.undercoverWord,
     category: pickedWordPair.category,
   };
-  return { players: round.players, revealCards: round.revealCards, wordPair };
+  // Record the key from the pre-swap pair so a pair counts as "used" regardless
+  // of which side ends up held by Civilian this round.
+  const newUsedWordKeys = [...usedWordKeys, wordKey(pickedWordPair.civilian, pickedWordPair.undercover)];
+  return { players: round.players, revealCards: round.revealCards, wordPair, usedWordKeys: newUsedWordKeys };
 }
 
 /**
@@ -99,7 +119,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     if (!validation.valid) {
       return false;
     }
-    const { players, revealCards, wordPair } = setupRound(names, config);
+    const { players, revealCards, wordPair, usedWordKeys } = setupRound(names, config, []);
     set({
       status: 'REVEAL',
       roundNumber: 1,
@@ -114,6 +134,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       lastEliminatedSeatIndex: null,
       winner: null,
       mrWhiteGuessResult: null,
+      usedWordKeys,
     });
     return true;
   },
@@ -239,9 +260,10 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
   },
 
   startNewRound: () => {
-    const { players, seatOrder, config, roundNumber } = get();
+    const { players, seatOrder, config, roundNumber, usedWordKeys } = get();
     const scoresByName = new Map(players.map((p) => [p.name, p.score]));
-    const { players: freshPlayers, revealCards, wordPair } = setupRound(seatOrder, config);
+    const { players: freshPlayers, revealCards, wordPair, usedWordKeys: nextUsedWordKeys } =
+      setupRound(seatOrder, config, usedWordKeys);
     const scoredPlayers = freshPlayers.map((p) => ({
       ...p,
       score: scoresByName.get(p.name) ?? 0,
@@ -259,10 +281,34 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       lastEliminatedSeatIndex: null,
       winner: null,
       mrWhiteGuessResult: null,
+      usedWordKeys: nextUsedWordKeys,
     });
   },
 
   resetToHome: () => {
     set(initialState());
+  },
+
+  finishSession: () => {
+    const { players, seatOrder, roundNumber } = get();
+    if (seatOrder.length > 0) {
+      const finalLeaderboard = [...players]
+        .sort((a, b) => b.score - a.score)
+        .map((p) => ({ name: p.name, score: p.score }));
+      const entry: SessionHistoryEntry = {
+        id: `history-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        timestamp: Date.now(),
+        playerNames: seatOrder,
+        finalLeaderboard,
+        roundsPlayed: roundNumber,
+      };
+      appendHistoryEntry(entry);
+    }
+    clearActiveSession();
+    set(initialState());
+  },
+
+  resumeSession: (saved) => {
+    set(saved);
   },
 }));
